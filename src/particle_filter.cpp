@@ -33,26 +33,26 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method
    *   (and others in this file).
    */
-    default_random_engine gen;
+    default_random_engine gen;  // Random engine from std lib
     double std_x, std_y, std_theta;  // Standard deviations for x, y, and theta
 
     num_particles = 100;  // Set the number of particles
 
-      if(is_initialized) {
+      if(is_initialized) { // Normal Error handling to avoid re-initialization
         return;
     }
 
-    //Set standard deviations for x, y, and theta
-    std_x = std[0];
-    std_y = std[1];
-    std_theta = std[2];
+    //This is added to improve redability of the code
+    std_x = std[0]; // Standard deviation of x [m]
+    std_y = std[1]; // Standard deviation of y [m]
+    std_theta = std[2]; // standard deviation of yaw [rad]
 
     // Normal Distributions
-    normal_distribution<double> dist_x(x, std_x);
-    normal_distribution<double> dist_y(y, std_y);
-    normal_distribution<double> dist_theta(theta, std_theta);
+    normal_distribution<double> dist_x(x, std_x); // Initial x position from GPS as mean
+    normal_distribution<double> dist_y(y, std_y); // Initial y position from GPS as mean
+    normal_distribution<double> dist_theta(theta, std_theta); //initial heading angle from GPS as mean
 
-    //Generate particles with normal distribution with mean on GPS values.
+    //Generate 'num_particles' particles
     for(int i = 0; i < num_particles; i++) {
         Particle p;
         p.id = i;
@@ -62,7 +62,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
         p.weight = 1.0;
         particles.push_back(p);
     }
-    is_initialized = true;
+    is_initialized = true; // To avoid re-initialization
 
 }
 
@@ -78,28 +78,34 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
     default_random_engine gen;
     double std_x, std_y, std_theta;
 
-    std_x = std_pos[0];
-    std_y = std_pos[1];
-    std_theta = std_pos[2];
+    //This is added to improve redability of the code
+    std_x = std_pos[0];     // standard deviation of x [m]
+    std_y = std_pos[1];     // standard deviation of y [m]
+    std_theta = std_pos[2]; // standard deviation of yaw [rad]]
 
-    //Normal distributions for sensor noise
+    //Normal distributions
     normal_distribution<double> dist_x(0, std_x);
     normal_distribution<double> dist_y(0, std_y);
     normal_distribution<double> dist_theta(0, std_theta);
 
     // Based on the formulae provided in sessions, Predict x, y and theta.
+    // Using standard trigonometric ratios sin(θ) and cos(θ)
     for(int i = 0; i < num_particles; i++) {
         if(fabs(yaw_rate) < 0.00001) {
             particles[i].x += velocity * delta_t * cos(particles[i].theta);
+
             particles[i].y += velocity * delta_t * sin(particles[i].theta);
         }
         else{
-            particles[i].x += velocity / yaw_rate * (sin(particles[i].theta + yaw_rate*delta_t) - sin(particles[i].theta));
-            particles[i].y += velocity / yaw_rate * (cos(particles[i].theta) - cos(particles[i].theta + yaw_rate*delta_t));
+            particles[i].x += velocity / yaw_rate * \
+            (sin(particles[i].theta + yaw_rate*delta_t) - sin(particles[i].theta));
+
+            particles[i].y += velocity / yaw_rate * \
+            (cos(particles[i].theta) - cos(particles[i].theta + yaw_rate*delta_t));
+
             particles[i].theta += yaw_rate * delta_t;
         }
 
-        //Noise
         particles[i].x += dist_x(gen);
         particles[i].y += dist_y(gen);
         particles[i].theta += dist_theta(gen);

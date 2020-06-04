@@ -3,6 +3,7 @@
  *
  * Created on: Dec 12, 2016
  * Author: Tiffany Huang
+ * Reference: Dhanoop Karunakaran's article on medium.com
  */
 
 #include "particle_filter.h"
@@ -22,6 +23,7 @@ using std::string;
 using std::vector;
 using std::normal_distribution;
 using std::default_random_engine;
+using std::discrete_distribution;
 
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
@@ -122,7 +124,35 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
    *   probably find it useful to implement this method and use it as a helper
    *   during the updateWeights phase.
    */
+	for(unsigned int i = 0; i < observations.size(); i++) {
 
+        // These variable are added to improve redability, compiler will optimize them away
+		unsigned int sizeOfObservations = observations.size();
+		unsigned int sizeOfPredications = predicted.size();
+
+		for(unsigned int i = 0; i < sizeOfObservations; i++) {
+
+			double currentMinimum = 0;
+			int id = -1;
+
+			for(unsigned j = 0; j < sizeOfPredications; j++ ) {
+
+				double xDist = observations[i].x - predicted[j].x;
+				double yDist = observations[i].y - predicted[j].y;
+				double distance = (xDist * xDist) + (yDist * yDist);
+
+				if(currentMinimum == 0) {
+                    currentMinimum = distance; // First Value
+				}
+				else if(distance < currentMinimum) {
+                    // If the distance is lower than current min then store it as min
+					currentMinimum = distance;
+					id = predicted[j].id;
+				}
+				observations[i].id = id;
+			}
+		}
+	}
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
@@ -141,7 +171,55 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
    *   and the following is a good resource for the actual equation to implement
    *   (look at equation 3.33) http://planning.cs.uiuc.edu/node99.html
    */
+	for(int i = 0; i < num_particles; i++) {
 
+		vector<LandmarkObs> predictions;
+		unsigned int noOfLandmarks = map_landmarks.landmark_list.size();
+
+        double paricle_x = particles[i].x;
+		double paricle_y = particles[i].y;
+		double paricle_theta = particles[i].theta;
+
+		for(unsigned int j = 0; j < noOfLandmarks; j++) {
+
+			float lm_x = map_landmarks.landmark_list[j].x_f;
+			float lm_y = map_landmarks.landmark_list[j].y_f;
+			int lm_id = map_landmarks.landmark_list[j].id_i;
+
+			if(fabs(lm_x - paricle_x) <= sensor_range && fabs(lm_y - paricle_y) <= sensor_range) {
+				predictions.push_back(LandmarkObs{ lm_id, lm_x, lm_y });
+			}
+		}
+
+		vector<LandmarkObs> transformed;
+		for(unsigned int j = 0; j < observations.size(); j++) {
+			double t_x = cos(paricle_theta)*observations[j].x - sin(paricle_theta)*observations[j].y + paricle_x;
+			double t_y = sin(paricle_theta)*observations[j].x + cos(paricle_theta)*observations[j].y + paricle_y;
+			transformed.push_back(LandmarkObs{ observations[j].id, t_x, t_y });
+		}
+
+		dataAssociation(predictions, transformed);
+		particles[i].weight = 1.0;
+		for(unsigned int j = 0; j < transformed.size(); j++) {
+			double o_x, o_y, pr_x, pr_y;
+			o_x = transformed[j].x;
+			o_y = transformed[j].y;
+			int asso_prediction = transformed[j].id;
+
+			for(unsigned int k = 0; k < predictions.size(); k++) {
+				if(predictions[k].id == asso_prediction) {
+					pr_x = predictions[k].x;
+					pr_y = predictions[k].y;
+				}
+			}
+
+			double s_x = std_landmark[0];
+			double s_y = std_landmark[1];
+			double obs_w = ( 1/(2*M_PI*s_x*s_y)) * exp( -( pow(pr_x-o_x,2)/(2*pow(s_x, 2)) + (pow(pr_y-o_y,2)/(2*pow(s_y, 2))) ) );
+
+			particles[i].weight *= obs_w;
+		}
+	}
 }
 
 void ParticleFilter::resample() {
@@ -151,6 +229,17 @@ void ParticleFilter::resample() {
    * NOTE: You may find std::discrete_distribution helpful here.
    *   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
    */
+    default_random_engine gen;
+	discrete_distribution<int> dd(weights.begin(), weights.end());
+    // Also Check http://www.cplusplus.com/reference/random/discrete_distribution/
+
+	vector<Particle> particles_resample;
+
+	for(int i=0; i < num_particles; i++) {
+		particles_resample.push_back( particles.at( dd(gen) ) );
+	}
+
+	particles = particles_resample;
 
 }
 

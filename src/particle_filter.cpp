@@ -186,7 +186,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			float lm_y = map_landmarks.landmark_list[j].y_f;
 			int lm_id = map_landmarks.landmark_list[j].id_i;
 
-			if(fabs(lm_x - paricle_x) <= sensor_range && fabs(lm_y - paricle_y) <= sensor_range) {
+			if(pow((lm_x - paricle_x), 2) + pow((lm_x - paricle_x), 2) <= sensor_range*sensor_range) {
 				predictions.push_back(LandmarkObs{ lm_id, lm_x, lm_y });
 			}
 		}
@@ -217,7 +217,11 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			double s_y = std_landmark[1];
 			double obs_w = ( 1/(2*M_PI*s_x*s_y)) * exp( -( pow(pr_x-o_x,2)/(2*pow(s_x, 2)) + (pow(pr_y-o_y,2)/(2*pow(s_y, 2))) ) );
 
-			particles[i].weight *= obs_w;
+            if (obs_w == 0) {
+                particles[i].weight *= 0.00001;
+            } else {
+                particles[i].weight *= obs_w;
+            }
 		}
 	}
 }
@@ -229,17 +233,24 @@ void ParticleFilter::resample() {
    * NOTE: You may find std::discrete_distribution helpful here.
    *   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
    */
-    default_random_engine gen;
-	discrete_distribution<int> dd(weights.begin(), weights.end());
-    // Also Check http://www.cplusplus.com/reference/random/discrete_distribution/
 
-	vector<Particle> particles_resample;
+  default_random_engine gen;
+  vector<double> weights;
 
-	for(int i=0; i < num_particles; i++) {
-		particles_resample.push_back( particles.at( dd(gen) ) );
-	}
+  for(unsigned int i = 0; i < particles.size(); i++) {
+    weights.push_back(particles[i].weight);
+    }
 
-	particles = particles_resample;
+  std::discrete_distribution<> dd(weights.begin(), weights.end());
+
+  vector<Particle> new_particles;
+
+  for(int i = 0; i < num_particles; i++){
+    int index = dd(gen);
+    new_particles.push_back(particles[index]);
+    }
+
+  particles = new_particles;
 
 }
 
